@@ -8,263 +8,316 @@
 
 This exercise focused on web reconnaissance against applications hosted on the Metasploitable 2 virtual machine.
 
-The main objective was to use **Photon** from Kali Linux to crawl several web applications, identify discoverable URLs, and understand how automated reconnaissance can reveal resources that are not immediately obvious from simply viewing a page in a browser.
+I used **Photon** to crawl several applications and see what URLs and resources could be discovered automatically. I then used **DirBuster** and **SecLists** to explore a different type of content discovery.
 
-I also carried out additional practical work using **DirBuster** and **SecLists** to understand the difference between web crawling and wordlist-based content discovery.
+This helped me understand that web reconnaissance is not simply running one tool. A crawler follows resources it can find, while a wordlist-based tool can test for resources that may exist even when they are not linked from the page.
 
 Testing was limited to the authorised Metasploitable 2 laboratory target.
 
----
-
-# 1. Objective
-
-The objectives were to:
-
-1. Confirm that the Metasploitable target was reachable.
-2. Identify web applications hosted on the target.
-3. Use Photon to crawl each application individually.
-4. Compare internal, external and fuzzable URLs discovered.
-5. Observe how authentication affected crawling.
-6. Understand the role of `robots.txt` during reconnaissance.
-7. Compare crawling with wordlist-based directory and file discovery.
+For privacy, the original local IP address has been replaced with `<TARGET_IP>`.
 
 ---
 
-# 2. Photon Reconnaissance
+## 1. Photon Reconnaissance
 
 Photon is a web crawler used for reconnaissance and attack-surface mapping.
 
-It begins with a supplied URL and follows links and other references that it can discover.
+It begins with a supplied URL and follows links and other references it can discover.
 
-The basic format used during the exercise was:
+The basic format I used was:
 
 ```bash
 python3 photon.py -u http://<TARGET_IP>/<APPLICATION>
 ```
 
-Each application was opened in the browser first so that I could identify its location before crawling it individually.
+I opened each application in the browser first so I could identify its location and then crawled the applications individually.
+
+### Following the trail to other resources
+
+One of the things I learned about Photon was that the starting URL was only the beginning of the crawl.
+
+Photon could follow the trail of references it discovered from that starting point into other URLs and resources. This meant it could lead me to parts of the application that were not obvious from simply viewing the original page and were not necessarily links I would have noticed or followed manually.
+
+That changed how I understood crawling. I was not just giving Photon a page and asking it to list what was visibly on that page. I was giving it a starting point from which it could continue discovering other reachable resources.
+
+This became especially clear when I compared the browser view with the results from DAV later in the exercise.
 
 ---
 
-# 3. Results
+## 2. Photon Results
 
 | Application | Internal URLs | External URLs | Fuzzable URLs | Observation |
-|---|---:|---:|---:|---|
+| --- | ---: | ---: | ---: | --- |
 | DVWA | 1 | 0 | 0 | Crawl began at the login page |
 | Mutillidae | 1 | 0 | 0 | Only one internal URL discovered |
 | phpMyAdmin | 2 | 2 | 0 | One URL retrieved from `robots.txt` |
 | TWiki | 6 | 0 | 0 | One URL found at Level 1 and five at Level 2 |
 | DAV | 16 | 0 | 4 | Considerably more content discovered than was visible in the browser |
 
----
+### Internal URLs
 
-# 4. Understanding the Results
+An internal URL belongs to the target being crawled. These help map additional pages and resources within the same application or host.
 
-## Internal URLs
-
-An internal URL belongs to the target being crawled.
-
-These URLs help map additional pages and resources within the same web application or host.
-
-## External URLs
+### External URLs
 
 An external URL points away from the target to another domain or external resource.
 
-These can help show how an application interacts with resources outside the target environment.
+### Fuzzable URLs
 
-## Fuzzable URLs
+Photon can identify some URLs or parameters as potentially suitable for further input testing.
 
-Photon identifies some URLs or parameters as potentially suitable for further input testing.
+A fuzzable URL is **not proof of a vulnerability**. It tells me that there is an input location that may be worth investigating further.
 
-A fuzzable URL is **not evidence of a vulnerability**.
-
-It simply identifies an input location that may warrant further investigation.
-
-This distinction was important because reconnaissance identifies areas of interest, while additional testing is required before a vulnerability can be confirmed.
+This was an important distinction: reconnaissance identifies possible areas of interest, but further testing is needed before calling something a vulnerability.
 
 ---
 
-# 5. DAV Discovery
+## 3. DAV Discovery
 
-The DAV application produced the most interesting Photon result.
+DAV produced the most interesting Photon result.
 
-When viewed normally in the browser, the page appeared to contain very little content.
-
-However, Photon discovered:
+When I viewed the application normally in the browser, there appeared to be very little content. Photon discovered:
 
 - **16 internal URLs**
 - **4 fuzzable URLs**
 
-This demonstrated that the amount of content visible to a normal browser user does not necessarily represent the full attack surface that can be discovered through automated reconnaissance.
+This showed me why following the trail from a starting URL can be useful. What was immediately visible in the browser was not necessarily everything Photon could reach and discover during the crawl.
 
 ---
 
-# 6. Authentication and DVWA
+## 4. Authentication and DVWA
 
 Photon discovered only one internal URL when crawling DVWA.
 
-DVWA presented a login page, which prevented the unauthenticated crawler from accessing resources that required an authenticated session.
+DVWA presented a login page, which limited what the unauthenticated crawler could reach.
 
-This demonstrated an important limitation of automated crawling:
-
-> A crawler can only map resources that it can reach within its current access and session context.
-
-If an application requires authentication, an unauthenticated reconnaissance tool may only see a small part of the available application.
+This helped me understand that a crawler can only map resources available within its current access and session. If authentication is required, an unauthenticated crawl may only reveal a small part of the application.
 
 ---
 
-# 7. robots.txt and phpMyAdmin
+## 5. robots.txt and phpMyAdmin
 
 During the phpMyAdmin crawl, Photon retrieved a URL from `robots.txt`.
 
-This helped demonstrate the reconnaissance value of the file.
+I learned that `robots.txt` gives instructions to compliant crawlers about paths that should or should not be crawled, but it is **not an access-control mechanism**.
 
-`robots.txt` is designed to provide instructions to compliant web crawlers about paths that should or should not be crawled.
+A listed path may still be directly accessible.
 
-However, it is **not an access-control mechanism**.
-
-A path listed in `robots.txt` may still be directly accessible.
-
-For this reason, the file can sometimes reveal useful information about the structure of a website or application.
+From a reconnaissance point of view, this means `robots.txt` can sometimes provide clues about a website's structure or paths that may be worth examining.
 
 ---
 
-# 8. Additional Practical Work: DirBuster and SecLists
+## 6. Moving from Crawling to Content Discovery
 
-I also used **DirBuster** with a **SecLists web-content wordlist** to understand how content discovery differs from crawling.
+I then used **DirBuster** with **SecLists**.
 
-Photon and DirBuster approach reconnaissance differently.
+This was where the difference between crawling and content discovery became clearer to me.
 
 ### Photon
 
-Photon follows resources that it can discover from an initial URL.
-
-In simple terms:
+Photon follows resources that it can discover from a starting URL.
 
 **Photon follows what it can find.**
 
 ### DirBuster
 
-DirBuster uses candidate names from a wordlist and sends requests to determine whether directories or files exist.
-
-In simple terms:
+DirBuster takes candidate directory or file names and sends requests to see whether those resources exist.
 
 **DirBuster tests what might exist.**
 
+This means DirBuster can potentially find content that is not linked from the pages a crawler can see.
+
 ### SecLists
 
-SecLists provides collections of candidate directory names, filenames and other values that can be supplied to discovery tools.
+SecLists is a collection of different wordlists used for security testing.
 
-In this exercise, it provided candidate web-content names for DirBuster to test.
+For web discovery I could use lists from its web-content collections, but I also learned that SecLists is much broader than one directory. Different lists exist for different types of enumeration and testing, so choosing a list should depend on what I am actually trying to discover.
+
+This was more useful than treating a wordlist as a random file to load into a tool.
 
 ---
 
-# 9. Directory and File Discovery
+## 7. Choosing What to Search For
 
-I learned the difference between several DirBuster options.
+One thing I learned during the DirBuster work was that I should not simply select file extensions at random.
 
-## Brute Force Dirs
+Before choosing an extension, I could look at the application for clues about the technology it was using. Existing URLs, filenames and other page clues could suggest what type of files were likely to be present.
 
-This tests candidate directory names.
+For example, if the application was clearly using PHP, searching for `.php` files made sense. If the application showed signs of ASP.NET, an extension such as `.aspx` would be more relevant.
 
-For example:
+So rather than thinking:
+
+> Pick every extension and hope something appears.
+
+the better approach was:
+
+> Look at the target first, gather clues, and choose options that make sense for that application.
+
+This also showed me that reconnaissance begins before pressing **Start** on a scanner.
+
+---
+
+## 8. Directories, Files and Trailing Slashes
+
+DirBuster also helped me understand the difference between searching for directories and files.
+
+### Directory discovery
+
+A directory might appear as:
 
 ```text
 /admin/
 ```
 
-## Brute Force Files
+The trailing `/` is a useful clue that the path is being treated as a directory.
 
-This can test candidate filenames.
+### File discovery
 
-When combined with a PHP extension, for example:
+A file could instead appear as:
 
 ```text
 /admin.php
 ```
 
-## Recursive Scanning
+or, on a different type of application:
 
-If DirBuster discovers a directory, recursive scanning allows it to continue looking for additional resources inside that directory.
+```text
+/admin.aspx
+```
 
-For example:
+The extension provides a clue about the type of server-side technology being used.
+
+Learning to notice things such as the **trailing slash**, path structure and file extension made the results easier for me to interpret instead of seeing every URL as essentially the same thing.
+
+---
+
+## 9. Recursive Scanning
+
+If DirBuster discovers a directory, recursive scanning can continue searching inside that directory.
+
+For example, discovering:
 
 ```text
 /admin/
 ```
 
-might then be searched for additional files or subdirectories.
+does not necessarily mean the discovery process has finished. That directory may contain additional files or subdirectories.
 
-## Threads
+This helped me understand why content discovery can branch into more paths as new directories are found.
+
+---
+
+## 10. Threads
+
+I also learned what the thread setting was doing.
 
 Threads control how many requests the tool can make concurrently.
 
-Increasing the number of threads may make discovery faster, but it also:
+Increasing the number can make discovery faster, but it also means more traffic is being sent to the target. It can increase load and, particularly when a target is behaving inconsistently, make the results harder to interpret.
 
-- generates more traffic;
-- increases load on the target;
-- may cause instability; and
-- may make results more difficult to interpret if the server behaves inconsistently.
+So a higher number is not automatically better.
 
 ---
 
-# 10. Inconsistent Fail Responses
+## 11. Inconsistent Fail Responses
 
-During the exercise, DirBuster produced an **inconsistent fail-response warning**.
+During the practical, DirBuster produced an **inconsistent fail-response warning**.
 
-This showed why content-discovery tools need to understand what a normal response for a nonexistent resource looks like.
+This became one of the more useful parts of the exercise because it forced me to think about what the tool was actually doing.
 
-If the target returns unusual or inconsistent responses for invalid paths, a discovery tool may incorrectly treat nonexistent resources as valid.
+For directory discovery to work properly, the tool needs some way to distinguish:
 
-This can produce **false positives**.
+```text
+A resource exists
+```
 
-The result reinforced the importance of interpreting automated tool output rather than assuming that every result represents a genuine resource.
+from:
+
+```text
+A resource does not exist
+```
+
+If a server responds strangely or inconsistently when a nonexistent path is requested, the tool can mistakenly treat invalid resources as real ones.
+
+That can create **false positives**.
+
+The important lesson was that I could not simply assume that every item shown by DirBuster genuinely existed. The responses still had to be interpreted.
 
 ---
 
-# What I Learned
+## 12. How the Tools Fit Together
 
-This exercise helped me understand that web reconnaissance involves more than looking at what is visible in a browser.
+By this stage I could see the difference between the tools more clearly.
 
-Different tools discover information in different ways.
+| Tool | What I was using it for |
+| --- | --- |
+| Photon | Crawling resources that could be discovered from a starting URL |
+| DirBuster | Testing possible directory and file names |
+| SecLists | Supplying wordlists appropriate to the type of discovery being performed |
+
+They overlap as reconnaissance tools, but they do not discover information in exactly the same way.
+
+A crawler can miss something because nothing it can reach links to it.
+
+A wordlist-based discovery tool may still find that resource if the relevant name is included in the list being tested.
+
+At the same time, wordlist discovery depends heavily on the choices I make: the list, extensions, recursion, threads and how I interpret the responses.
+
+---
+
+## Key Commands and Examples
+
+### Photon
+
+```bash
+python3 photon.py -u http://<TARGET_IP>/<APPLICATION>
+```
+
+### Example directory
+
+```text
+/admin/
+```
+
+### Example PHP file
+
+```text
+/admin.php
+```
+
+### Example ASP.NET file
+
+```text
+/admin.aspx
+```
+
+---
+
+## What I Learned
+
+This exercise helped me understand web reconnaissance in more depth than simply looking at what was visible in a browser.
 
 I learned that:
 
-- Photon follows links and discoverable references from a starting URL.
-- DirBuster tests possible directory and filename combinations.
-- SecLists provides candidate names for content-discovery testing.
-- Authentication can limit what an unauthenticated crawler can discover.
-- `robots.txt` may reveal useful structural information but does not provide access control.
-- A fuzzable URL is an area for further testing, not proof of a vulnerability.
-- Automated tools can generate false positives.
-- Tool output must be interpreted in context.
-- Different reconnaissance techniques can reveal different parts of the same attack surface.
+- Photon follows links and other references it can discover.
+- Authentication can limit what an unauthenticated crawler sees.
+- `robots.txt` can reveal structural information but is not access control.
+- A fuzzable URL is an area for further investigation, not proof of a vulnerability.
+- DirBuster uses candidate names to test what directories or files might exist.
+- SecLists contains different types of wordlists, and the list should be chosen according to the task.
+- Looking at the target can give clues about which file extensions are sensible to test.
+- `.php` and `.aspx` are examples of extensions that may be relevant depending on the technology being used.
+- A trailing slash can help distinguish a directory path from a file path.
+- Recursive scanning can continue discovery inside directories that have already been found.
+- More threads can increase speed but also increase traffic and load.
+- Inconsistent server responses can cause false positives.
+- Automated results still have to be interpreted rather than accepted automatically.
 
-The clearest example was DAV.
+The clearest Photon example was DAV. Very little appeared to be present when I viewed it normally, but Photon found **16 internal URLs and 4 fuzzable URLs**.
 
-Very little appeared to be present when viewing the application normally, but Photon discovered **16 internal URLs and 4 fuzzable URLs**.
+The DirBuster work added another lesson: before running a discovery tool, I should look at the target and think about what I am asking the tool to search for.
 
-This demonstrated why automated reconnaissance can reveal considerably more information than manual browsing alone.
-
----
-
-# Conclusion
-
-The exercise introduced me to two different approaches to web reconnaissance.
-
-**Photon follows what it can discover.**
-
-**DirBuster tests what might exist.**
-
-**SecLists supplies candidate names for those tests.**
-
-Together, these techniques demonstrated that attack-surface mapping involves combining different forms of reconnaissance rather than relying on a single tool.
-
-Most importantly, the exercise reinforced that discovering a URL, directory, parameter or fuzzable input does not automatically mean a vulnerability exists.
-
-Reconnaissance identifies areas that may deserve further investigation. Additional testing and evidence are required before making a vulnerability finding.
-
----
+That was probably the biggest change in my understanding during this exercise. I was moving from simply learning commands to beginning to understand why I was choosing particular options.
 
 ## Lab Note
 
