@@ -6,178 +6,109 @@
 
 ## Overview
 
-This practical brought together several web-security tools as part of one reconnaissance and analysis workflow.
+This practical brought together several things I had been learning separately and helped me see them as one process.
 
-Rather than treating each tool independently, I worked through the following sequence:
+The general sequence was:
 
-**Target identification → connectivity check → Photon reconnaissance → application analysis → technology identification → DirBuster content discovery → false-positive management → OWASP ZAP proxy analysis**
+**confirm target → crawl with Photon → inspect the application → use what I found to configure DirBuster → interpret the results → move to ZAP → inspect the actual HTTP traffic**
 
-The main objective was to understand how information gathered during one stage of reconnaissance can guide the next stage.
+The main lesson was that information gathered at one stage can help decide what to do at the next stage.
 
 Testing was limited to the authorised Metasploitable 2 laboratory target.
 
+For privacy, the original local IP address has been replaced with `<TARGET_IP>`.
+
 ---
 
-# 1. Confirming the Target
+## 1. Confirming the Target
 
-Before carrying out web reconnaissance, I confirmed that the Metasploitable machine was reachable from Kali Linux.
+Before starting the web reconnaissance, I confirmed that Metasploitable was reachable from Kali:
 
 ```bash
 ping -c 3 <TARGET_IP>
 ```
 
-Three packets were transmitted and three responses were received, with no packet loss.
+Three packets were transmitted and three responses were received with no packet loss.
 
-## What I Learned
-
-It is useful to confirm basic connectivity before beginning more detailed testing.
-
-If the target cannot be reached, there is little value troubleshooting application tools before checking the underlying network connection.
+This was a simple step, but it reinforced a useful troubleshooting habit: check basic connectivity before assuming an application or security tool is the problem.
 
 ---
 
-# 2. Photon Reconnaissance
+## 2. Photon Reconnaissance
 
-Photon was used to crawl several web applications hosted on the Metasploitable machine.
-
-The purpose was to identify discoverable resources and build an initial picture of each application's web attack surface.
-
-## Results
+I used Photon to crawl several applications hosted on Metasploitable.
 
 | Application | Internal URLs | External URLs | Fuzzable URLs | Observation |
-|---|---:|---:|---:|---|
+| --- | ---: | ---: | ---: | --- |
 | DVWA | 1 | 0 | 0 | Crawl began at the login page |
 | Mutillidae | 1 | 0 | 0 | Only one internal URL discovered |
 | phpMyAdmin | 2 | 2 | 0 | One URL retrieved from `robots.txt` |
 | TWiki | 6 | 0 | 0 | One Level 1 and five Level 2 URLs |
 | DAV | 16 | 0 | 4 | More content discovered than appeared in the browser |
 
-The DAV result was particularly useful.
+DAV was again the clearest example of why crawling was useful. Very little appeared to be present when viewed normally, but Photon discovered **16 internal URLs and 4 fuzzable URLs**.
 
-Although little appeared to be present when the application was viewed normally, Photon discovered:
+Photon starts with a URL and follows the trail of references it can discover into other reachable resources. The starting page therefore does not necessarily show everything the crawler may eventually reach.
 
-- 16 internal URLs
-- 4 fuzzable URLs
+I also reinforced the distinction between:
 
-This demonstrated that what is visible through the browser does not necessarily represent everything available for discovery.
+- **internal URLs** — resources belonging to the target;
+- **external URLs** — resources outside the target; and
+- **fuzzable URLs** — input locations that may be worth later testing.
 
----
+A fuzzable URL is not proof of a vulnerability.
 
-# 3. Understanding the Photon Results
+### Authentication
 
-Photon helped reinforce several reconnaissance concepts.
+DVWA only produced one internal URL because the crawl reached a login page.
 
-## Internal URLs
+This showed me that a crawler is limited by its current access and session. If it is not authenticated, it may only see a small part of an application.
 
-Internal URLs belong to the target being crawled.
-
-They can reveal additional pages and resources within the same application.
-
-## External URLs
-
-External URLs point to resources outside the target.
-
-## Fuzzable URLs
-
-A fuzzable URL contains an input location that may be suitable for later testing.
-
-A fuzzable result does **not** mean that a vulnerability has been confirmed.
-
-It identifies an area that may warrant further investigation.
-
----
-
-# 4. Authentication and Reconnaissance
-
-DVWA presented a login page.
-
-The unauthenticated Photon crawl discovered only one internal URL.
-
-This demonstrated that a crawler can only discover resources available within its current access and session context.
-
-Authentication can therefore significantly change the amount of an application that a reconnaissance tool is able to map.
-
----
-
-# 5. robots.txt
+### robots.txt
 
 During the phpMyAdmin crawl, Photon retrieved information from `robots.txt`.
 
-This demonstrated that `robots.txt` can be useful during reconnaissance because it may reveal application paths.
-
-However, `robots.txt` is not an access-control mechanism.
-
-Resources listed within it may still be directly accessible.
+I learned that `robots.txt` may reveal application paths, but it is not an access-control mechanism. A path being listed there does not make it private.
 
 ---
 
-# 6. Moving from Crawling to Content Discovery
+## 3. Using Reconnaissance to Configure DirBuster
 
-The next stage introduced DirBuster and SecLists.
+Before configuring DirBuster, I manually inspected Mutillidae.
 
-This helped clarify an important difference between crawling and content discovery.
+While moving through the application, I noticed that pages repeatedly used the `.php` extension.
 
-### Photon
+That gave me a reason to configure DirBuster to test PHP files rather than choosing an extension at random.
 
-Photon follows what the application exposes through links and other references.
+The process was becoming:
 
-**Photon follows what it can discover.**
+**observe target → identify clues about the technology → configure the next tool accordingly**
 
-### DirBuster
-
-DirBuster takes candidate resource names and asks the server whether they exist.
-
-**DirBuster tests what might exist.**
-
-The two techniques therefore complement each other:
-
-**Photon reconnaissance → understand the application → DirBuster content discovery**
+This was an important change for me because I was beginning to understand why I was selecting particular settings rather than simply copying them.
 
 ---
 
-# 7. Identifying the Relevant File Extension
+## 4. Selecting a SecLists Wordlist
 
-Before configuring DirBuster, I manually inspected the Mutillidae application.
-
-While navigating through different parts of the site, I observed that application pages repeatedly used the `.php` extension.
-
-This provided evidence that PHP was relevant to the target.
-
-I therefore configured DirBuster to test PHP files rather than selecting a file extension arbitrarily.
-
-## What I Learned
-
-Reconnaissance can help reduce the search space.
-
-The process became:
-
-**Observe target → identify technology → configure later testing accordingly**
-
----
-
-# 8. Selecting a SecLists Wordlist
-
-For the first DirBuster run, I used:
+For the first DirBuster run I used:
 
 ```text
 /usr/share/seclists/Discovery/Web-Content/common.txt
 ```
 
-I also learned an important distinction about wordlists.
+I also learned something very basic but useful here: **a wordlist is not a program**.
 
-The wordlist is not a program.
+It is a text file containing candidate values that another program reads.
 
-It is a text file containing candidate names that another tool reads.
+At one point I entered the wordlist path directly into the terminal and received a permission error because the shell treated it as something I was trying to execute.
 
-Attempting to enter the wordlist path directly into the terminal resulted in a permission error because the shell interpreted the file as something to execute.
+The correct approach was to give the wordlist to DirBuster as input.
 
-Instead, the wordlist had to be supplied to DirBuster as input.
+I also learned that SecLists contains many different collections. `Discovery/Web-Content` was relevant to this task, but the correct list depends on what I am trying to enumerate.
 
 ---
 
-# 9. Configuring DirBuster
-
-DirBuster was configured using information gathered during earlier reconnaissance.
+## 5. Configuring DirBuster
 
 The configuration included:
 
@@ -185,108 +116,90 @@ The configuration included:
 - SecLists `common.txt`;
 - directory testing;
 - file testing;
-- recursive scanning;
+- recursive scanning; and
 - PHP as the file extension.
 
-In this context, **brute force did not mean password cracking**.
+Here, **brute force did not mean password cracking**.
 
-DirBuster systematically tested candidate directory and file names from the supplied wordlist.
+DirBuster was systematically testing candidate directory and file names from the supplied list.
 
-For example:
+For example, a directory might look like:
 
 ```text
 /admin/
 ```
 
-or:
+while a PHP file might look like:
 
 ```text
 /admin.php
 ```
 
-Recursive scanning allowed DirBuster to continue searching inside directories that it discovered.
+Recursive scanning meant that when DirBuster found a directory, it could continue looking for resources inside it.
 
 ---
 
-# 10. Interpreting DirBuster Responses
+## 6. Interpreting DirBuster Responses
 
-DirBuster returned a variety of HTTP responses, including:
+DirBuster returned HTTP responses including:
 
-- `200` - successful response
-- `302` - redirection
-- `403` - forbidden
+- `200` — successful response;
+- `302` — redirection; and
+- `403` — forbidden.
 
-These status codes provided information about how the server responded to particular resources.
+A `403` could still be interesting because the server may recognise the requested location even though access is denied.
 
-A `403` response, for example, can still be interesting because it suggests that the server recognised the requested location even though access was denied.
-
-However, a status code or discovered resource does not automatically prove that a vulnerability exists.
+But I learned not to equate a status code or discovered path with a vulnerability. It is evidence about how the server responded and still needs interpretation.
 
 ---
 
-# 11. Inconsistent Failure Responses
+## 7. Inconsistent Failure Responses
 
-During recursive discovery, DirBuster displayed the warning:
+During recursive discovery against TWiki, DirBuster displayed:
 
 ```text
 Warning unable to determine consistent fail response.
 ```
 
-This occurred while testing TWiki.
+This became one of the most useful parts of the exercise.
 
-The application returned different-looking responses when nonexistent resources were requested.
+A content-discovery tool needs to distinguish a real resource from the response returned for something that does not exist.
 
-This created a problem because a content-discovery tool must be able to distinguish:
+TWiki was returning different-looking responses for nonexistent resources, which made that distinction difficult and could create large numbers of false positives.
 
-**real resource**
+### Investigating the responses
 
-from:
+DirBuster showed several example failure responses.
 
-**response generated for a nonexistent resource**
-
-If that distinction cannot be made reliably, large numbers of false positives can be produced.
-
----
-
-# 12. Investigating the Failure Responses
-
-DirBuster provided several example failure responses.
-
-Although parts of the responses differed, each contained the same message:
+Although other parts differed, I noticed that they all contained:
 
 ```text
 This Wiki topic does not exist
 ```
 
-This provided a stable characteristic that could be used to identify failed requests.
+I entered that phrase into DirBuster's failure-matching field and tested it against the examples.
 
-I entered the phrase into DirBuster's failure-matching field and tested it against the example responses.
+All three passed the test, and DirBuster reported that the expression should work.
 
-All three passed the test.
+The process was:
 
-DirBuster reported that the expression should work.
+**tool reports ambiguity → inspect the responses → find a common failure indicator → test it → use it to reduce false positives**
 
-## What I Learned
-
-This was an important example of why automated tools still require human interpretation.
-
-The process became:
-
-**Tool detects ambiguity → inspect responses → identify common failure indicator → test indicator → reduce false positives**
+This was a good example of why automated tools still need human interpretation.
 
 ---
 
-# 13. DirBuster Scan Performance
+## 8. The Nine-Day DirBuster Scan
 
 After configuring the failure-matching rule, DirBuster continued recursive enumeration.
 
-However, the scan progressed extremely slowly.
+It was extremely slow.
 
-Progress remained around 3 to 5%, while the estimated completion time eventually increased to approximately nine days.
+Progress remained around **3–5%**, while the estimated completion time eventually reached approximately **nine days**.
 
-Waiting for the complete scan was not practical for the exercise.
+Waiting for that was not practical.
 
-However, the DirBuster stage had already demonstrated:
+By then I had already used the scan to learn:
 
 - list-based directory discovery;
 - file discovery;
@@ -294,27 +207,29 @@ However, the DirBuster stage had already demonstrated:
 - HTTP response interpretation; and
 - false-positive management.
 
-The exercise therefore moved to OWASP ZAP for manual application analysis.
+Rather than waiting days for the tool to finish, I moved on to OWASP ZAP.
+
+This was also a useful practical lesson: a tool technically running does not necessarily mean that continuing to wait is the best use of the assessment time.
 
 ---
 
-# 14. Introducing OWASP ZAP
+## 9. Introducing OWASP ZAP
 
-OWASP ZAP was used to examine communication between the browser and the Mutillidae application.
+I used OWASP ZAP to examine the communication between Firefox and Mutillidae.
 
 I selected **Manual Explore** and launched Firefox through ZAP.
 
-As I interacted with the application, browser requests and server responses appeared within ZAP's History.
+As I interacted with the application, requests and responses appeared in ZAP's History.
 
-This demonstrated the role of a web proxy.
+This made the idea of a web proxy much easier to understand.
 
-ZAP sits between the browser and the web application and allows HTTP traffic to be observed and analysed.
+In this setup, ZAP sat between the browser and the web application so that I could inspect the HTTP communication.
 
 ---
 
-# 15. Examining a GET Request
+## 10. Examining a GET Request
 
-The first request examined was a GET request for the Mutillidae application.
+One of the first requests I examined was a GET request for Mutillidae.
 
 It followed the general form:
 
@@ -323,37 +238,29 @@ GET http://<TARGET_IP>/mutillidae/ HTTP/1.1
 Host: <TARGET_IP>
 ```
 
-Other headers contained information such as:
+Other headers contained information such as the browser User-Agent, accepted content types and connection information.
 
-- browser User-Agent;
-- accepted content types;
-- connection information.
+At this point there was no parameter-value pair associated with the resource. The browser was simply requesting the application page.
 
-At this point, there was no parameter-value pair associated with the resource.
-
-The browser was simply requesting the application page.
-
-## What I Learned
-
-The request helped separate several parts of an HTTP request:
+This helped me separate parts of an HTTP request:
 
 - method;
 - host;
 - requested resource;
-- headers;
+- headers; and
 - parameters.
 
 ---
 
-# 16. Examining the Server Response
+## 11. Examining the Response
 
-The corresponding server response returned:
+The corresponding response returned:
 
 ```http
 HTTP/1.1 200 OK
 ```
 
-Response headers also disclosed information about the server technology:
+The response headers also disclosed:
 
 ```text
 Server: Apache/2.2.8 (Ubuntu) DAV/2
@@ -365,61 +272,50 @@ and:
 X-Powered-By: PHP/5.2.4-2ubuntu5.10
 ```
 
+This connected back to the earlier reconnaissance work because the response itself gave clues about the technologies in use.
+
 The response also contained a `PHPSESSID` cookie.
 
-## What I Learned
+I began to understand that a session identifier allows the application to associate later requests with an existing session.
 
-HTTP responses can reveal information about the technology running behind an application.
+This stage also helped me distinguish between:
 
-I also began to understand the role of session identifiers.
-
-`PHPSESSID` allows the application to associate later requests with an existing PHP session.
-
-The exercise also helped distinguish:
-
-- **response headers**, which provide protocol and metadata information;
-- **response body**, which contains the actual content returned to the browser.
+- **response headers** — protocol and metadata information; and
+- **response body** — the actual content returned to the browser.
 
 ---
 
-# 17. Identifying a GET Parameter
+## 12. Identifying a GET Parameter
 
-I then navigated to the Mutillidae login functionality.
+I navigated to the Mutillidae login functionality.
 
-This generated a request containing:
+ZAP captured a request containing:
 
 ```text
 index.php?page=login.php
 ```
 
-The request therefore contained:
+I could now break that down into:
 
 ```text
+Requested script: index.php
 Parameter: page
 Value: login.php
 ```
 
-This provided a practical example of information being supplied to an application through a URL.
-
-Instead of seeing the whole URL as one piece of text, I could now separate:
-
-- the requested script: `index.php`
-- the parameter: `page`
-- the value: `login.php`
+This was useful because I stopped seeing the URL as one long piece of text and began recognising the individual parts that an application receives and processes.
 
 ---
 
-# 18. Observing a POST Request
+## 13. Observing a POST Request
 
 I entered test credentials into the Mutillidae login form and submitted it.
 
-ZAP captured the resulting POST request.
+ZAP captured the POST request.
 
-Unlike the earlier GET request, the submitted form data appeared in the request body.
+Unlike the earlier GET parameter, the submitted form data appeared in the request body.
 
-This demonstrated that browser form fields are converted into HTTP request data and sent to the server.
-
-## Difference Observed
+The practical difference became much clearer:
 
 ### GET
 
@@ -431,13 +327,13 @@ page=login.php
 
 ### POST
 
-The submitted login data appeared within the request body.
+The submitted login information was carried in the request body.
 
-This helped make the practical difference between GET and POST much clearer.
+Seeing the actual requests made this easier to understand than simply memorising the definition of GET and POST.
 
 ---
 
-# 19. HTTP Success vs Application Success
+## 14. HTTP Success vs Application Success
 
 The unsuccessful login attempt returned:
 
@@ -445,178 +341,111 @@ The unsuccessful login attempt returned:
 HTTP/1.1 200 OK
 ```
 
-At first glance, `200 OK` could appear to indicate that the login was successful.
+At first, `200 OK` might look as though the login worked.
 
-However, the response body contained an application-level error indicating that authentication had failed.
+But the response body contained an application-level error showing that authentication had failed.
 
-## What I Learned
-
-`200 OK` means that the server successfully processed the HTTP request and returned a valid HTTP response.
-
-It does **not** mean that the action the user attempted was successful.
-
-For example:
+This taught me an important distinction:
 
 ```text
 HTTP request successful ≠ login successful
 ```
 
-Application behaviour and response content must also be examined.
+`200 OK` means that the server successfully handled the HTTP request and returned a valid HTTP response.
+
+It does not mean that the action the user wanted the application to perform was successful.
+
+The status code therefore has to be interpreted together with the response content and application behaviour.
 
 ---
 
-# 20. Lessons from Manual Proxy Analysis
+## 15. How the Stages Connected
 
-Using ZAP made the request-response process much easier to understand.
+By the end of this practical, the workflow made more sense to me as a connected process:
 
-A normal browser interaction hides much of the underlying communication.
+```text
+Confirm target connectivity
+        ↓
+Crawl with Photon
+        ↓
+Inspect discovered resources
+        ↓
+Look at the application manually
+        ↓
+Notice PHP technology
+        ↓
+Choose a relevant SecLists wordlist and extension
+        ↓
+Configure DirBuster
+        ↓
+Interpret HTTP responses
+        ↓
+Investigate inconsistent failure behaviour
+        ↓
+Create and test a failure signature
+        ↓
+Decide whether continuing the scan is practical
+        ↓
+Move to ZAP
+        ↓
+Proxy browser traffic
+        ↓
+Inspect GET request and response
+        ↓
+Identify parameter and value
+        ↓
+Inspect POST form submission
+        ↓
+Compare HTTP status with application result
+```
 
-ZAP allowed me to see the sequence:
-
-**Browser action → HTTP request → method and parameters → server processing → HTTP response → headers and body → application result**
-
-This also demonstrated why both headers and bodies matter.
-
-Headers provide information about the communication and environment.
-
-The body often contains the information required to understand what actually happened at the application level.
-
----
-
-# What I Learned
-
-This practical helped connect several different tools into one methodology.
-
-Instead of seeing Photon, DirBuster, SecLists and ZAP as unrelated applications, I began to understand how information gathered by one tool can guide the next stage.
-
-The main lessons were:
-
-- Confirm connectivity before troubleshooting application tools.
-- Photon discovers resources by following available references.
-- DirBuster searches for resources that may exist even when they are not linked.
-- SecLists supplies candidate names for content discovery.
-- Manual inspection can reveal technology information that helps configure later testing.
-- HTTP status codes must be interpreted rather than accepted blindly.
-- Automated tools can generate false positives.
-- Failure responses can sometimes be analysed and filtered.
-- Long automated scans are not always the most useful use of time.
-- ZAP makes browser-to-server communication visible.
-- GET and POST requests carry information differently.
-- HTTP headers can disclose server and application technologies.
-- Session cookies help applications maintain state.
-- An HTTP `200 OK` response does not mean the requested application action succeeded.
-- Reconnaissance is most useful when each stage informs the next.
-
----
-
-# Methodology Developed
-
-By the end of the exercise, the practical workflow had become:
-
-**Target identification**
-
-↓
-
-**Connectivity check**
-
-↓
-
-**Photon crawl**
-
-↓
-
-**Analyse discovered resources**
-
-↓
-
-**Manual application inspection**
-
-↓
-
-**Identify PHP technology**
-
-↓
-
-**Select SecLists wordlist**
-
-↓
-
-**Configure DirBuster**
-
-↓
-
-**Directory and file discovery**
-
-↓
-
-**Interpret HTTP responses**
-
-↓
-
-**Identify inconsistent failure behaviour**
-
-↓
-
-**Create and validate failure signature**
-
-↓
-
-**Assess scan performance**
-
-↓
-
-**Move to OWASP ZAP**
-
-↓
-
-**Proxy Mutillidae traffic**
-
-↓
-
-**Inspect GET request**
-
-↓
-
-**Analyse response headers and technology disclosure**
-
-↓
-
-**Identify GET parameter and value**
-
-↓
-
-**Submit login form**
-
-↓
-
-**Inspect POST request**
-
-↓
-
-**Analyse response body**
-
-↓
-
-**Distinguish HTTP success from application success**
+This was the first time the tools started to feel less like separate programs I was learning and more like different parts of the same investigation.
 
 ---
 
-# Conclusion
+## What I Learned
 
-This practical marked a shift from using individual security tools to thinking about reconnaissance as a connected process.
+The main things I took from this practical were:
 
-Photon helped identify resources already exposed by the application.
+- confirm connectivity before troubleshooting application tools;
+- Photon can follow discovered references from a starting URL into other reachable resources;
+- authentication affects what a crawler can see;
+- `robots.txt` can provide reconnaissance information but is not access control;
+- inspect the target before deciding which file extensions or settings make sense;
+- a SecLists wordlist is input to another tool, not a program to execute;
+- DirBuster can test resources that are not linked from the application;
+- recursive scanning can continue discovery inside directories;
+- HTTP status codes need interpretation;
+- automated discovery can generate false positives;
+- inconsistent failure responses can sometimes be filtered by finding a common response characteristic;
+- an automated scan taking days may not be useful simply because it is still running;
+- ZAP makes the browser/server conversation visible;
+- GET parameters can appear in the URL;
+- POST form data can appear in the request body;
+- response headers can disclose technology information;
+- cookies such as `PHPSESSID` help maintain session state; and
+- `200 OK` describes the HTTP response, not necessarily success of the application action.
 
-DirBuster used a wordlist to search for additional resources that might not be linked.
+---
 
-SecLists supplied the candidate names for that discovery.
+## Conclusion
 
-When DirBuster produced unreliable results, the responses had to be interpreted and filtered rather than accepted automatically.
+This practical marked a shift from using individual tools to thinking about reconnaissance as a connected process.
 
-OWASP ZAP then exposed the HTTP communication behind ordinary browser interactions.
+Photon helped me discover resources by following references from a starting point.
 
-The most important lesson was that the tools themselves are only part of the process.
+Manual inspection then gave me clues about the application technology, which helped me configure DirBuster more deliberately.
 
-The value comes from understanding:
+When DirBuster produced unreliable failure responses, I had to inspect the responses myself and identify a pattern the tool could use to reduce false positives.
 
-**what information
+When the scan became impractically slow, I moved to ZAP rather than treating completion of the automated scan as the objective.
+
+ZAP then let me see what was happening underneath ordinary browser actions: GET and POST requests, parameters, headers, cookies, response bodies and status codes.
+
+The most important lesson was that the tools themselves were only part of the process.
+
+The value came from understanding **what information each stage gave me, what that information meant, and how it could guide the next step**.
+
+## Lab Note
+
+This project documents authorised testing performed against Metasploitable 2, an intentionally vulnerable cybersecurity training environment.
