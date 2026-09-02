@@ -27,6 +27,12 @@ I then reviewed a selection of findings across Mutillidae, TWiki, phpMyAdmin and
 
 ---
 
+### AI-Assisted Learning Note
+
+During this lab, I used an AI assistant as a learning resource to help troubleshoot errors, interpret some command output, and suggest diagnostic commands that I would not necessarily have known as a beginner. I ran the commands and completed the practical work in my own lab environment.
+
+---
+
 ## 2. Objectives
 
 My objectives were to:
