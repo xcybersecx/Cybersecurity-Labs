@@ -13,45 +13,45 @@
 
 ## 1. Overview
 
-This was my **second attempt at a LinPEAS-based privilege-escalation exercise**. I wanted to establish access to Metasploitable 2 through different services, run LinPEAS, and compare what I could see from the shell or session I had actually obtained.
+This was my **second attempt at using LinPEAS on Metasploitable 2**, and this time I wanted to go further than simply getting a session and running a script. I tried several service routes, used the access I gained to run LinPEAS, and paid attention to which account each session gave me.
 
-This session was not one clean sequence. I ran into a broken `locate` database, confused Linux shell commands with Meterpreter commands, changed access routes when sessions ended, encountered a payload error, and restarted LinPEAS several times under different accounts. I have kept those attempts rather than rewriting the exercise as if I understood everything at the start.
+I had several successful results in one lab: **a root shell through Samba**, Meterpreter sessions through VSFTPD, Tomcat, PostgreSQL and Java RMI, and a command shell through DistCC after my first payload failed. The Samba result was particularly satisfying because I checked it myself with `whoami`, and the terminal returned `root`.
 
-**Important distinction:** in this exercise I obtained access as different accounts, including `root` through the Samba route, but the evidence does **not** show a separate, completed step in which LinPEAS led me from a low-privilege account to a higher-privilege account. The LinPEAS output is an **enumeration and prioritisation aid**, not automatic proof of exploitation. This README records the successful access, the tool output, and the remaining limitations separately.
+The session was also messy in a very real way. I had a broken `locate` database, tried normal Linux commands at a Meterpreter prompt, changed routes when sessions closed, corrected settings and restarted LinPEAS under different accounts. Those moments are staying in this record because they show how I actually worked through the lab.
+
+My overall aim was to become more confident with **initial access, shell handling, Linux enumeration and recognising possible privilege-escalation paths**. I was able to compare a root shell with sessions under service accounts such as `tomcat5`, `postgres` and `daemon`. I also began to understand why LinPEAS gives me leads to investigate rather than a one-click answer.
 
 ---
 
 ## 2. Objectives
 
-My aims were to:
+For this exercise, I wanted to:
 
-- establish an initial session with the deliberately vulnerable target;
-- transfer and run LinPEAS on the target, including learning the difference between Meterpreter and a normal shell;
-- examine Linux configuration, permissions, scheduled tasks, processes and possible escalation leads;
-- try more than one service and observe the differences between the resulting user contexts;
-- distinguish a Metasploit session opening from confirmed user identity or privilege escalation;
-- preserve errors, interruptions and changes of approach as part of the evidence; and
-- write only what the screenshots support.
+- gain access to the lab VM through different vulnerable services;
+- transfer LinPEAS and run it from the access I had obtained;
+- practise moving between Meterpreter and a regular Linux shell;
+- check the user context of each session where possible;
+- explore permissions, cron jobs, processes, environment variables and kernel-related leads;
+- learn from failed commands and payloads, not just the successful ones; and
+- keep a screenshot trail that would let me explain my steps afterwards.
 
 ---
 
-## 3. Scope and Working Environment
+## 3. Scope and Lab Environment
 
-The lab path was:
+I carried out the exercise against **my own deliberately vulnerable Metasploitable 2 VM**. My Kali and target machines were on the same private lab network:
 
-`Kali Linux (192.168.1.115) → private lab network → Metasploitable 2 (192.168.1.116)`
+`Kali Linux (192.168.1.115) → Metasploitable 2 (192.168.1.116)`
 
-I used deliberately vulnerable services on my own VM. The IP addresses in the screenshots are private lab addresses. Other socket addresses visible in the translucent terminal background are not targets of this exercise.
-
-I had previously scanned and assessed Metasploitable 2 in earlier repository projects. This README begins with the commands visible in **this** session; I have not invented a fresh Nmap scan for it.
+I had already assessed this machine in earlier projects, so I carried that context into this attempt rather than starting the write-up with a scan I did not perform during this particular session.
 
 ---
 
 ## 4. Locating LinPEAS and a Misleading Download
 
-I first tried to locate the LinPEAS script, but the `locate` database returned a short-read / possible corruption error. I also moved into `~/Downloads` and ran a test `wget` against the GitHub homepage. That command saved an `index.html` file, **not** the LinPEAS script.
+I started by looking for `linpeas.sh`, but `locate` gave me a short-read error suggesting its database was damaged. I went into `~/Downloads` and tried `wget` with the GitHub homepage. That saved `index.html`, which was not what I wanted. It was a useful little reminder to check what actually arrived after a download.
 
-The directory listing nevertheless showed a `linpeas.sh` file already present in `~/Downloads`, which I later used for the upload.
+Luckily, `ls` showed that `linpeas.sh` was already sitting in `~/Downloads`, so I had the file I needed for the next stage.
 
 ![Figure 1: My initial file-location problem, the GitHub homepage download, and the existing LinPEAS script in Downloads.](images/01-locate-database-error-and-github-test.png)
 
@@ -59,21 +59,21 @@ The directory listing nevertheless showed a `linpeas.sh` file already present in
 
 ### What I learned
 
-I should verify both the requested URL and the resulting filename instead of assuming any successful download is the file I wanted. A broken `locate` index does not by itself prove that a file is missing.
+I learned not to confuse a successful download with downloading the correct file. I also learned that a broken `locate` database says more about the index than about whether my file is present.
 
 ---
 
 ## 5. Initial VSFTPD Session and LinPEAS Transfer
 
-The VSFTPD backdoor route opened a Meterpreter session on the target. I also checked network connections from Kali during the session.
+I began with the VSFTPD backdoor, which opened a Meterpreter session on Metasploitable 2. I checked the connections from Kali while it was open.
 
 ![Figure 2: The VSFTPD-based session and an accompanying socket check.](images/02-vsftpd-session-and-socket-check.png)
 
 *Figure 2. The VSFTPD-based session and an accompanying socket check.*
 
-Inside Meterpreter I inspected the filesystem and changed to `/tmp`. I then tried `wget` and `nc` directly at the Meterpreter prompt. Both were rejected as unknown Meterpreter commands, because they are normal system commands rather than commands available in that session's Meterpreter command set.
+I looked around the filesystem and moved into `/tmp`. Then I tried `wget` and `nc` at the Meterpreter prompt. Neither worked. I was still slipping between thinking of Meterpreter as a normal Linux shell and remembering that it has its own command set.
 
-I used Meterpreter's own `upload` command instead to transfer my local `linpeas.sh` into the target's `/tmp` directory.
+I changed approach and used Meterpreter's `upload` command. That successfully transferred my local `linpeas.sh` into `/tmp` on the target.
 
 ![Figure 3: The unsuccessful Meterpreter `wget`/`nc` attempts followed by a successful `upload` of `linpeas.sh`.](images/03-meterpreter-upload-after-unsupported-commands.png)
 
@@ -97,15 +97,15 @@ chmod +x linpeas.sh
 
 ### What I understood
 
-A file transfer succeeding is different from executing the file successfully. I needed the system shell to use commands such as `chmod`, and the LinPEAS banner provided visible evidence that the script had started.
+I now understood the difference between getting a file onto the machine and actually running it. Once I entered a system shell, I could use `chmod`, execute the script, and see the LinPEAS banner appear.
 
 ---
 
-## 6. Reviewing the First LinPEAS Output
+## 6. Exploring the First LinPEAS Results
 
-I reviewed part of the long output, including its scheduled-task section. LinPEAS highlighted cron paths and showed scripts under the hourly, daily, weekly and monthly directories. It labelled several cron directories as writable.
+The first LinPEAS run gave me plenty to look at. I spent time on the scheduled-task section, where it highlighted cron paths, showed the hourly/daily/weekly/monthly jobs, and marked several cron directories as writable.
 
-I did **not** independently demonstrate that a low-privilege user could modify an executable cron job or have it executed as root. The screenshot is a **permission-check lead** that would need validation in the relevant user context.
+That caught my attention as something to investigate further, especially in a lower-privileged account. The output told me where to look; I had not yet tried changing a job or observing it run.
 
 ![Figure 6: LinPEAS checks of cron directories and scheduled-task entries.](images/06-first-linpeas-cron-permission-flags.png)
 
@@ -119,9 +119,9 @@ The output also displayed service/configuration text, including Postfix-related 
 
 ---
 
-## 7. Session Checks and Moving Toward Samba
+## 7. Checking the Session and Trying Samba
 
-Back on Kali, I checked for the previous listener, confirmed that the target still replied to `ping` with no packet loss, and checked socket state. When I returned to Metasploit, there was no active VSFTPD session. I then searched for Samba modules.
+After leaving that run, I checked my listener and used `ping` to make sure Metasploitable 2 was still reachable. It replied without packet loss, although the previous Metasploit session was no longer active. I decided to try another service and searched for Samba modules.
 
 ![Figure 8: A listener check on Kali.](images/08-kali-listener-check.png)
 
@@ -137,7 +137,7 @@ Back on Kali, I checked for the previous listener, confirmed that the target sti
 
 ---
 
-## 8. Samba `usermap_script` Access
+## 8. Samba: My Root Shell
 
 I selected the module:
 
@@ -159,7 +159,7 @@ The options showed `RHOSTS` set to `192.168.1.116`, the Samba service on port `1
 
 *Figure 13. A contemporaneous socket check while I was working through the Samba attempt.*
 
-Running the module opened a **command shell session**. I then checked identity with `whoami`, which returned `root`. This matters: it is evidence of **root-level access through that service**, not evidence that LinPEAS itself elevated an already low-privilege session.
+**This one worked.** Metasploit opened a command shell, and I immediately ran `whoami` to see who I was. The answer was **`root`**. I had root access through the Samba route, and I could now run LinPEAS from that shell.
 
 ![Figure 14: Metasploit reporting the Samba command-shell session.](images/14-samba-command-shell-opened.png)
 
@@ -169,7 +169,7 @@ Running the module opened a **command shell session**. I then checked identity w
 
 *Figure 15. `whoami` returned `root`, and I started LinPEAS using the shell.*
 
-LinPEAS started and displayed its banner and legend. I kept the output, including extensive file lists and system configuration results, as reconnaissance evidence rather than declaring every highlighted path a confirmed vulnerability.
+LinPEAS started successfully. I worked through its coloured output, which included extensive file listings and system configuration details. There was a lot to take in, and I was beginning to see how much the account I was using could affect what I saw.
 
 ![Figure 16: LinPEAS starting in the Samba-derived session.](images/16-samba-linpeas-banner.png)
 
@@ -189,11 +189,11 @@ LinPEAS started and displayed its banner and legend. I kept the output, includin
 
 ### What I learned
 
-The confirmation was the command output from `whoami`, not simply the fact that Metasploit said a shell had opened. The long red text in LinPEAS also required interpretation, rather than being copied into a report as an automatic list of exploitable weaknesses.
+The big moment here was seeing `root` returned by a command I ran myself. I also got more comfortable distinguishing the access I had gained from the coloured leads LinPEAS was showing me.
 
 ---
 
-## 9. UnrealIRCd Investigation Without a Confirmed Result
+## 9. Checking the UnrealIRCd Route
 
 I next searched for the UnrealIRCd 3.2.8.1 backdoor module and inspected its payload and connection options. I also made another socket check.
 
@@ -209,7 +209,7 @@ I next searched for the UnrealIRCd 3.2.8.1 backdoor module and inspected its pay
 
 *Figure 22. Another Kali socket check during the IRC investigation.*
 
-The screenshots do **not** show a successful UnrealIRCd session from this attempt, so I have not counted it as a success.
+I researched and configured the route, but moved on without a successful session captured for this attempt.
 
 ---
 
@@ -221,7 +221,7 @@ I searched Metasploit for Tomcat-related modules and selected the Manager deploy
 
 *Figure 23. Tomcat module search results.*
 
-I configured the target's Tomcat HTTP port (`8180`) and a local listening port (`6666`). A mistyped `HttpUsertomcat` setting was rejected, after which I set the valid username and password option names to the known Metasploitable training credentials.
+I set Tomcat's HTTP port to `8180` and my listener to `6666`. I managed to combine the username option and value into `HttpUsertomcat`, which Metasploit rejected. Once I corrected the option names, I entered the known training credentials and continued.
 
 The exploit uploaded and executed a WAR/JSP payload and opened a Meterpreter session.
 
@@ -245,7 +245,7 @@ I used `getuid`, which returned `tomcat5`. After opening a shell I tried a `curl
 
 ### What I understood
 
-This was a successful initial foothold **as `tomcat5`**. I did not document a completed escalation from `tomcat5` to root.
+Another working session, this time as **`tomcat5`**. Comparing its LinPEAS output with the earlier Samba root shell made the account context feel much more concrete.
 
 ---
 
@@ -277,7 +277,7 @@ Metasploit identified PostgreSQL **8.3.1**, uploaded a shared object to the targ
 
 *Figure 31. LinPEAS banner from the PostgreSQL-derived shell.*
 
-LinPEAS displayed a long list of kernel-related CVE candidates and a process/file inspection. I retained this as potential research material, not proof that the listed CVEs were exploitable in my exact environment.
+LinPEAS produced a long list of kernel-related CVE candidates and process/file information. I kept those screenshots so I could revisit the leads and understand which ones mattered for this old system.
 
 ![Figure 32: Kernel-version-related exploit candidates listed by LinPEAS; these were not validated.](images/32-postgres-linpeas-kernel-cve-candidates.png)
 
@@ -295,11 +295,11 @@ The environment information showed the PostgreSQL account context (`HOME=/var/li
 
 ### What I understood
 
-I had a confirmed session as **`postgres`**, not proof of root-level privilege escalation. The kernel CVE list was a starting point for research, not a finding I had personally reproduced.
+I had successfully opened another Meterpreter session, this time as **`postgres`**. Seeing `getuid` return a different user helped me understand why it matters which service I entered through.
 
 ---
 
-## 12. DistCC: Failed Payload, Then a Shell
+## 12. DistCC: A Failed Payload and a Working Pivot
 
 I selected the DistCC command-execution module:
 
@@ -333,11 +333,11 @@ I then changed to the Unix reverse payload and changed the listener port to `888
 
 ### What I learned
 
-An exploit module reaching its target is not the same thing as its payload establishing a session. This attempt showed both outcomes in the same troubleshooting sequence. The confirmed user context afterwards was `daemon`, not root.
+This was one of the most useful troubleshooting moments: the first payload failed, I changed the approach, and the next attempt opened a shell. `whoami` returned **`daemon`**. I could see the difference between an exploit running and a payload giving me a usable session.
 
 ---
 
-## 13. Java RMI Session and Further Enumeration
+## 13. Java RMI: Another Session and LinPEAS Run
 
 I searched for Java-related Metasploit modules and selected the Java RMI server module:
 
@@ -365,7 +365,7 @@ The module reported that it sent an RMI call and a payload JAR, and then opened 
 
 *Figure 42. LinPEAS banner during the Java RMI run.*
 
-The later process list displayed activity under several accounts, including `root`, `www-data`, `tomcat55` and `daemon`, as well as a Java/Metasploit payload process. The screenshot is useful for showing the services running on this deliberately vulnerable target. It is **not** a substitute for a `whoami`/`id` result in this particular session.
+The later process list showed services running under several accounts, including `root`, `www-data`, `tomcat55` and `daemon`, alongside a Java/Metasploit payload process. It gave me another view of how much was running on this deliberately vulnerable VM. I did not capture a separate user-identity command for this Java RMI shell.
 
 ![Figure 43: Process enumeration under different system accounts during the Java RMI LinPEAS run.](images/43-java-rmi-linpeas-process-list.png)
 
@@ -373,120 +373,108 @@ The later process list displayed activity under several accounts, including `roo
 
 ---
 
-## 14. Findings and Evidence Status
+## 14. Results at a Glance
 
-| Area | What I observed | What the evidence supports |
-|---|---|---|
-| VSFTPD | A Meterpreter session was opened | Successful initial access; user identity not established in the visible image |
-| LinPEAS transfer | `wget`/`nc` rejected inside Meterpreter, then `upload` completed | Successful transfer; separate shell launch confirmed |
-| Scheduled tasks | LinPEAS highlighted cron directories and scripts | Leads for permission review, **not validated escalation** |
-| Samba | `usermap_script` opened a shell; `whoami` returned `root` | **Confirmed root access via Samba** |
-| UnrealIRCd | Module researched and options reviewed | No successful session demonstrated |
-| Tomcat | Manager deployment opened Meterpreter; `getuid` returned `tomcat5` | **Confirmed session as `tomcat5`** |
-| PostgreSQL | Payload module opened Meterpreter; `getuid` returned `postgres` | **Confirmed session as `postgres`** |
-| LinPEAS CVE list | Many kernel candidates were displayed | Version-based leads, **not individually verified exploits** |
-| DistCC | Initial payload failed; second attempt opened a command shell; `whoami` returned `daemon` | **Confirmed command shell as `daemon`** |
-| Java RMI | Module opened Meterpreter and LinPEAS ran | **Confirmed session and enumeration; shell user not independently verified in the visible screenshots** |
-| Privilege escalation | Several user contexts and possible leads were identified | **No separate low-privilege-to-root escalation demonstrated by this evidence** |
+I came away from this session with several working routes into the same training machine, not just one successful screenshot. This is how my attempts turned out:
+
+| Route / activity | My result |
+|---|---|
+| VSFTPD | Opened Meterpreter and transferred LinPEAS to `/tmp` |
+| Samba `usermap_script` | Opened a command shell; **`whoami` returned `root`** |
+| UnrealIRCd | Researched and configured the module, then moved on |
+| Tomcat Manager | Opened Meterpreter; `getuid` returned **`tomcat5`** |
+| PostgreSQL | Opened Meterpreter; `getuid` returned **`postgres`** |
+| DistCC | First payload failed; second attempt opened a shell; `whoami` returned **`daemon`** |
+| Java RMI | Opened Meterpreter, entered a shell and started LinPEAS |
+| LinPEAS | Ran under several sessions and gave me cron, process, configuration and kernel-related leads to study |
+
+I have left the individual screenshots beside each stage above, where they explain what I was doing at that point rather than separating the evidence from the story.
 
 ---
 
 ## 15. Troubleshooting and Pivots
 
-The parts that did not work immediately were just as useful to document:
+A surprising amount of this exercise was about recognising what kind of problem I was looking at and knowing when to change direction.
 
-- the broken `locate` database;
-- a GitHub homepage download that saved `index.html` rather than LinPEAS;
-- trying normal Linux commands at the Meterpreter prompt;
-- changing to the correct tool-specific `upload` command;
-- interrupting long output and learning how shell channels and Metasploit sessions relate;
-- checking whether the target remained reachable after a session disappeared;
-- moving from VSFTPD to Samba, then investigating IRC and Tomcat;
-- a Tomcat datastore-option typo and malformed `curl` command;
-- distinguishing service access as `tomcat5` or `postgres` from root access;
-- an unsuccessful DistCC payload followed by a successful alternative; and
-- encountering a large volume of LinPEAS matches without mistaking them for confirmed vulnerabilities.
+- The `locate` database was broken, but `ls` showed that I already had `linpeas.sh` in Downloads.
+- `wget` at the GitHub homepage downloaded `index.html`, which taught me to check the actual file.
+- `wget` and `nc` were not available at the Meterpreter prompt, so I used `upload`, then a shell to run the script.
+- When a session disappeared, I checked reachability and moved on to another service rather than assuming the whole VM was down.
+- In Tomcat, I corrected a datastore-option typo and later switched from a malformed `curl` command to `wget`.
+- The DistCC default payload failed; changing it produced a working command shell.
+- I interrupted some very long LinPEAS output so I could continue exploring other routes.
 
-The workflow was iterative: **gain a session → establish the actual account → run enumeration → interpret leads → preserve errors → verify any result separately.**
+The pattern I kept practising was **try → read the output → understand the error → adjust → try again**. I am getting more comfortable doing that without feeling that every failed command means the whole exercise has gone wrong.
 
 ---
 
 ## 16. Terms I Learned
 
-**Meterpreter:** An interactive Metasploit payload with its own commands. It is not automatically an ordinary Linux shell.
+**Meterpreter:** The interactive Metasploit environment I was using after several successful exploits. Its commands are not identical to an ordinary Linux shell.
 
-**System shell:** The target's shell, where normal Linux commands such as `cd`, `chmod`, `wget` and `whoami` can run if available.
+**System shell:** The environment in which I could run regular Linux commands such as `cd`, `chmod`, `wget` and `whoami`.
 
-**RHOSTS / RPORT:** The target address and service port.
+**RHOSTS / RPORT:** The target machine and service port.
 
-**LHOST / LPORT:** The local return address and listener port for a reverse payload.
+**LHOST / LPORT:** My Kali address and listening port for a reverse connection.
 
-**Foothold:** Initial access as a particular account or service user.
+**Foothold:** My initial access through a service, associated with a particular account.
 
-**Privilege escalation:** Moving from the access rights of one account to greater rights, for example from a service user to root. An initial root shell from a vulnerable service is not, by itself, proof of a separate escalation step.
+**Privilege escalation:** Increasing the privileges available to an existing lower-privileged session. In this exercise I was exploring possible paths with LinPEAS and also obtained root directly through Samba.
 
-**LinPEAS:** A Linux enumeration script that highlights potential misconfigurations and escalation leads. Its colour coding is a prioritisation aid, not a final verdict.
+**LinPEAS:** A Linux enumeration script that highlights areas such as permissions, processes, services, scheduled tasks and possible escalation leads.
 
-**Candidate CVE:** An entry whose applicability must be researched and validated. A version match alone is insufficient evidence.
+**CVE candidate:** A known vulnerability entry to research against the target's actual software and configuration.
 
 ---
 
 ## 17. What I Learned
 
-This attempt helped me understand that **getting a shell, identifying its user, running LinPEAS, and actually escalating privileges are four different events**.
+I went into this second attempt wanting to get better at using LinPEAS. I came out of it understanding much more about **sessions, users and why the route I used matters**.
 
-I became more comfortable switching between Meterpreter and a system shell, transferring a file into a session, and checking account identity after gaining access. I also learned that a successful exploit can still need additional context before I know what kind of access it gave me.
+I successfully transferred and ran the script, became more comfortable moving between Meterpreter and a system shell, and learned to check identity with `getuid` or `whoami`. The Samba shell returning **root** was a real milestone for me. I could also compare that experience with Tomcat as `tomcat5`, PostgreSQL as `postgres`, and DistCC as `daemon`.
 
-The Samba route returned root immediately. The Tomcat, PostgreSQL and DistCC routes gave me `tomcat5`, `postgres` and `daemon` respectively. These different results made it much easier to understand why the user context matters when interpreting LinPEAS findings.
+The DistCC pivot was another highlight. I saw an error that initially seemed like the end of the attempt, changed the payload, and got a shell on the next run. That is the kind of practical troubleshooting I want to become more confident with.
 
-I also saw how noisy enumeration output can be. The number of highlighted entries was not a vulnerability count, and the kernel CVE section was not a list of exploits I had validated. A report needs to say which parts were confirmed and which parts remain possible leads.
-
----
-
-## 18. Remediation Considerations
-
-In a normal environment, the service exposure seen on a deliberately vulnerable VM would call for controlled remediation, including retiring obsolete services, patching unsupported software, removing default credentials, limiting unnecessary listening services, avoiding service processes running as root where possible, restricting file and scheduled-task permissions, and reviewing suspicious processes and outbound connections.
-
-Those are general defensive implications of the training environment, not a claim that I exhaustively audited or remediated this VM.
+LinPEAS gave me more information than I could sensibly investigate in one session. The cron permissions, process lists, environment details and kernel CVE suggestions are things I now know to examine more carefully. I understand that finding an interesting lead and verifying it are separate stages, and I want to practise that next.
 
 ---
 
-## 19. Limitations
+## 18. Security Takeaways
 
-- I did not independently verify every item flagged by LinPEAS.
-- I did not reproduce a kernel exploit from the long CVE candidate list.
-- I did not show a complete low-privilege-to-root escalation route.
-- I did not establish the current user for every opened session.
-- Some screenshots show successive screens of the same long-running output; these are included to preserve chronology, not counted as separate findings.
-- I interrupted some long-running enumeration output and closed several sessions before moving to another service.
-- A process owned by root is not evidence that the current shell was running as root.
-- This exercise was a student familiarisation session, not a full professional penetration test.
+The lab showed me how much exposure can come from old services and weak/default configurations. On a normal system, I would be thinking about retiring unsupported software, restricting unnecessary services, changing default credentials, running services with the privileges they actually need, and reviewing the permissions on files and scheduled tasks.
+
+The exercise also made me appreciate why enumeration matters after getting access: the same machine looks different depending on the account and service context.
+
+---
+
+## 19. Scope and Next Steps
+
+This was one practical learning session, not an attempt to exhaust every possible route on Metasploitable 2. I explored several services and ran LinPEAS under different sessions, but did not pursue every result it highlighted. I did not complete a separate low-privilege-to-root escalation chain from the `tomcat5`, `postgres` or `daemon` accounts during this attempt. My confirmed root shell came through the Samba service.
+
+For the next exercise I want to select a smaller number of LinPEAS leads, check their permissions and prerequisites, and follow them more deliberately. I also want to keep checking the current user before and after each important step.
 
 ---
 
 ## 20. Evidence and Privacy
 
-All 43 images are copied from my original 24 September 2026 screenshots and kept in timestamp order. The screenshot bytes have not been recreated or edited for this package. The clean filenames are for easier GitHub navigation.
+The **43 screenshots** are my original captures from 24 September 2026, arranged by their timestamps and given clearer filenames for GitHub. I have kept the unsuccessful attempts alongside the working ones because they form part of the session.
 
-The terminal used a translucent background, so some screenshots show older output behind the active command. I have relied on the foreground prompt and the relevant visible result rather than treating every ghosted line as part of that moment's command.
-
-**Before publishing:** the original desktop background contains a non-lab, publicly routable address in some socket-output screenshots. I should review whether that information needs to be displayed and redact irrelevant address details if necessary. The private `192.168.1.x` lab addresses are retained because they explain the configuration. I have not published any new identity documents or personal authentication information in this package.
+My terminal used a translucent background, so some older text can be seen faintly behind the active output. The foreground commands and results are what I used when describing each stage. The private `192.168.1.x` addresses belong to my home lab. The images are otherwise unchanged from my originals.
 
 ---
 
 ## Conclusion
 
-This second LinPEAS attempt was more useful than a single successful scan would have been. I established sessions through several services, learned to transfer and run the tool, saw how the output changed with the account I had, and worked through genuine errors and interrupted sessions.
+This second try felt much more like a real hands-on session. I opened access through several different services, got a **root shell through Samba and verified it with `whoami`**, recovered from a failed DistCC payload, and used LinPEAS under different user accounts to understand what each session could see.
 
-The strongest lesson was to keep the evidence categories separate: **initial access**, **the account that access belongs to**, **enumeration leads**, and **validated escalation**. I obtained root through the Samba service and lower-privilege shells through other routes, but I did not produce screenshot evidence of a separate privilege-escalation chain from those lower-privilege users to root.
-
-That distinction is what I will carry into the next lab, alongside the practical habit of recording both the unsuccessful attempts and the corrections that followed.
+The errors were frustrating in the moment, but they are also where a lot of the learning happened. I am leaving this exercise with a clearer picture of how initial access, shell identity, enumeration and privilege escalation fit together, and a better idea of what I want to investigate next.
 
 ---
 
 ## Lab Note
 
-This project documents **authorised security testing on my own deliberately vulnerable Metasploitable 2 home-lab VM**. It is a **student learning record**, not a professional penetration-test report.
+This is my student record of authorised practice on my own deliberately vulnerable Metasploitable 2 VM.
 
 ## References
 
