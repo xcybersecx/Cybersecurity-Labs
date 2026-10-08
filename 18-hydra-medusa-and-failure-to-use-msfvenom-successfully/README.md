@@ -29,7 +29,7 @@ Framework and payload screenshots document work I performed independently. The n
 | Hypervisor | Oracle VirtualBox |
 | Testing machine | Kali Linux |
 | Target | Metasploitable 2; console confirms the current target address on 6 October |
-| Address changes | Earlier work used earlier lab addresses; later generation and transfer captures use updated Kali and target addresses |
+| Address changes | Earlier work used different lab addresses; later generation and transfer captures use updated Kali and target addresses |
 | Enumeration | Nmap 7.99 and local interface checks |
 | Credential auditing | Hydra 9.7; Medusa 2.3; FTP, SSH and Telnet modules |
 | Candidate lists and editors | SecLists, RockYou search results, Weakpass browsing, nano and GVim |
@@ -77,7 +77,7 @@ On 6 October, I checked the target console with `ip a`. It now showed the curren
 
 *Figure 05 (2026-10-06, 08:10:57). Target console confirms the updated private address.*
 
-A scan of the old an earlier target address address reported the host down. I then inspected Kali interfaces and began a scan of the current target. The address correction was necessary before interpreting later authentication results.
+A scan of the earlier target address reported the host down. I then inspected Kali interfaces and began a scan of the current target. The address correction was necessary before interpreting later authentication results.
 
 ![Figure 06: Old-address scan fails; local interfaces and new target are checked.](Screenshot%202026-10-06%20081157.png)
 
@@ -187,7 +187,7 @@ I created `protocol.txt` containing three private IP addresses: the current targ
 
 *Figure 23 (2026-10-06, 10:20:22). Three-address target file prepared in nano.*
 
-Hydra reported a valid FTP login on the current target for the default lab pair the default training account and password. It also reported connection errors and that only **one of three targets** completed successfully. I kept the credential success and incomplete host coverage as separate findings.
+Hydra reported a valid FTP login on the current target using the default training account and password. It also reported connection errors and that only **one of three targets** completed successfully. I kept the credential success and incomplete host coverage as separate findings.
 
 ![Figure 24: Hydra reports valid FTP lab credentials with connection errors elsewhere.](Screenshot%202026-10-06%20102330.png)
 
@@ -329,6 +329,80 @@ The final capture records another HTML parsing failure, then a request for the a
 
 *Figure 46 (2026-10-07, 17:40:01). Actual file downloaded; stale-path errors followed by another segmentation fault.*
 
+## Before I repeat this lab
+
+**Planned repeat, not yet completed.** These are checks I intend to apply next time. They do not change the original results or guarantee that the unresolved crash will disappear.
+
+### 1. Confirm my starting state
+
+- [ ] Record the VirtualBox snapshot and whether earlier hardening has been rolled back.
+- [ ] Check the current address on each VM rather than reuse an old screenshot.
+- [ ] Record tester and target roles separately in my local notes.
+- [ ] Confirm the intended service is reachable before interpreting authentication results.
+- [ ] Record installed package versions. Investigate an unknown version display rather than automatically reinstalling a tool whose help and package checks work.
+
+**Revisit Figures 01–07:** the earlier target address was stale, and refreshing package indexes did not demonstrate a reinstall.
+
+### 2. Prepare clear credential-audit inputs
+
+- [ ] Use separate, clearly named files for username candidates, password candidates and lab targets.
+- [ ] Start with a small classroom list that I can inspect completely.
+- [ ] Check spelling, capitalisation, blank lines and accidental spaces. Save and reopen the file to verify its contents.
+- [ ] Include only currently verified, authorised lab targets. Remove stale addresses from the new input.
+- [ ] Record which input files were used in each attempt, since I edited them during the original run.
+- [ ] Identify whether a run is fresh or resumed so an earlier restore file does not confuse the record.
+
+**Revisit Figures 08–24:** the large corpus was explored, but the successful result used the custom input. The file called `protocol.txt` contained hosts.
+
+### 3. Classify the error before changing anything
+
+| Error or result | My next check |
+| --- | --- |
+| Connection refused or unreachable host | Recheck the address, VM state and service availability before drawing a password conclusion. |
+| SSH MAC or host-key negotiation error | Record a compatibility failure separately from an authentication failure. Keep legacy compatibility work confined to the training VM. |
+| Telnet prompt-identification failure | Preserve the actual prompt and error for review; the result remains unresolved. |
+| Interrupted audit | Mark it incomplete and preserve its output and resume state. |
+| Valid credentials plus other-host errors | Record the successful target separately from targets that were not tested successfully. |
+
+**Revisit Figures 18–28:** Hydra's SSH negotiation failure and Medusa's SSH success were different outcomes. Telnet remained unresolved.
+
+### 4. Verify ordinary file handling
+
+For my independently performed generation and execution work, I intend to record the source file, destination file and each observed result separately.
+
+- [ ] Record the full source path, byte count and identified file type before transfer.
+- [ ] Confirm the directory being served and distinguish a directory page from an individual file.
+- [ ] Check received content type and byte count. HTTP success alone is insufficient.
+- [ ] Identify the received file and compare its checksum with the source before treating them as identical. Matching size alone is insufficient.
+- [ ] Record the actual destination directory and use that path consistently in subsequent inspection.
+- [ ] Check spaces between commands, options and paths; avoid accidentally joining two full paths.
+- [ ] Keep attempts distinguishable in my notes instead of silently overwriting earlier evidence.
+- [ ] Stop and investigate unexpected HTML content. A filename extension or executable permission does not establish file type.
+
+**Revisit Figures 35–39 and 43–46:** I encountered HTML saved under an executable filename, and later referred to an old destination after downloading into the current directory.
+
+### 5. Treat the segmentation fault as unresolved
+
+The HTML download explains the parsing errors. It does **not** establish the cause of the segmentation faults. A crash appeared after the SCP transfer and again after the later 233-byte download.
+
+If the crash recurs, I intend to stop repeating the same attempt, preserve the exact error and record file identity, target operating-system and architecture information, and relevant diagnostics for a separate compatibility review. I will change one variable at a time and document why. I have not established a working repair for the crash.
+
+**Revisit Figures 37 and 46.**
+
+### 6. Save evidence for the new attempt
+
+| Checkpoint | What I intend to record |
+| --- | --- |
+| Starting state | Snapshot, VM roles and service availability |
+| Input preparation | Saved input-file descriptions without publishing credential values |
+| Credential audit | Exact success, failure, interruption or negotiation result for each service |
+| Ordinary transfer | Source and received file type, size, checksum and location |
+| Independent execution | Exact observed outcome, including any crash |
+| Final assessment | What worked, what remained unresolved and what changed |
+
+I will append the repeat attempt with its own date and figure numbers, preserving the original 46 screenshots for comparison.
+
+
 ## Troubleshooting
 
 | Observation | Interpretation supported by the evidence |
@@ -351,10 +425,10 @@ The final capture records another HTML parsing failure, then a request for the a
 
 | Test or milestone | Observed result | Limit |
 | --- | --- | --- |
-| Hydra FTP, target the current target | Valid default lab pair reported | Only one of three listed targets completed successfully. |
+| Hydra FTP, current target | Valid default lab pair reported | Only one of three listed targets completed successfully. |
 | Hydra SSH | MAC-negotiation errors | No valid SSH credential result from Hydra is captured. |
-| Medusa FTP, target the current target | Same lab pair reported as SUCCESS | Other listed hosts produced connection errors. |
-| Medusa SSH, target the current target | Same lab pair reported as SUCCESS | Success is documented in tool output; a separate manual SSH login appears later in the sequence. |
+| Medusa FTP, current target | Same lab pair reported as SUCCESS | Other listed hosts produced connection errors. |
+| Medusa SSH, current target | Same lab pair reported as SUCCESS | Success is documented in tool output; a separate manual SSH login appears later in the sequence. |
 | Telnet attempts | Interruptions, negotiation/prompt difficulties and connection errors | No successful Telnet credential finding is documented. |
 | File generation | Output files reported, including a later 233-byte ELF | Generation did not establish successful execution. |
 | SCP | Completed 233-byte transfer | Target execution subsequently crashed. |
