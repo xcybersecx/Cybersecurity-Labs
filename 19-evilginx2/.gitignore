@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.pcap
+*.pcapng
+*.har
+*.env
+*token*
+*cookie-export*
