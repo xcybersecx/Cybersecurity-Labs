@@ -89,15 +89,49 @@ These are the passwords visible in my screenshots for the tutor's exercise files
 
 ## Screenshots
 
-The screenshots are preserved in chronological order, including my mistakes and corrections.
+I’ve embedded the screenshots below in capture order, from the Kali setup through both password recoveries.
 
-1. [01: Reviewing Kali file paths](screenshots/01-kali-file-paths.png)
-2. [02: Checking the environment](screenshots/02-kali-terminal-check.png)
-3. [03: VirtualBox shared-folder settings](screenshots/03-virtualbox-shared-folder.png)
-4. [04: Copying the supplied assignment files](screenshots/04-copy-assignment-files.png)
-5. [05: Word hash extraction permission error](screenshots/05-docx-permissions-troubleshooting.png)
-6. [06: Word password recovered](screenshots/06-docx-password-recovered.png)
-7. [07: PDF password recovered](screenshots/07-pdf-password-recovered.png)
+### 01. Locate John the Ripper files
+
+I ran `locate john` in Kali to find John the Ripper files and helper utilities.
+
+![Locate John the Ripper files](screenshots/01-kali-file-paths.png)
+
+### 02. Check the Kali VM’s network connection
+
+My initial ping returned `Network is unreachable` while the VM was using the Lab Bridge connection.
+
+![Check the Kali VM’s network connection](screenshots/02-kali-terminal-check.png)
+
+### 03. Set up the VirtualBox shared folder
+
+I configured the host Desktop as an auto-mounted shared folder so Kali could access the assignment files.
+
+![Set up the VirtualBox shared folder](screenshots/03-virtualbox-shared-folder.png)
+
+### 04. Copy the assignment files into Kali
+
+I copied the Word and PDF files from `/media/sf_Desktop` and confirmed both were in `~/Downloads`.
+
+![Copy the assignment files into Kali](screenshots/04-copy-assignment-files.png)
+
+### 05. Troubleshoot Word file permissions
+
+`office2john` returned `PermissionError: [Errno 13]`. I changed ownership of the copied files and retried the extraction.
+
+![Troubleshoot Word file permissions](screenshots/05-docx-permissions-troubleshooting.png)
+
+### 06. Recover the Word password
+
+The 10,000-entry wordlist finished with zero matches. The larger wordlist recovered the Word document password.
+
+![Recover the Word password](screenshots/06-docx-password-recovered.png)
+
+### 07. Recover the PDF password
+
+John loaded the PDF hash and recovered the PDF password using the larger wordlist.
+
+![Recover the PDF password](screenshots/07-pdf-password-recovered.png)
 
 ## What I learned
 
