@@ -1,4 +1,4 @@
-# Google Cloud Security | Lab 01: Cloud Administration, IAM and Budget Automation
+# Lab 25: Google Cloud Security 01 | Cloud Administration, IAM and Budget Automation
 
 **Date:** 25 November 2026  
 **Environment:** Ubuntu (VirtualBox), Google Cloud CLI 594.0.1 and Google Cloud Console  
