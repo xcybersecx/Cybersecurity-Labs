@@ -1,0 +1,7 @@
+# Local test data and credentials must stay out of the public repository.
+message.json
+.env
+.env.*
+*.pem
+*.key
+__pycache__/
